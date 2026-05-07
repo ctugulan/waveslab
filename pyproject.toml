@@ -9,24 +9,41 @@ description = "Steady hydroelastic wave modelling and image-derived ice-cover re
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "numpy",
-    "scipy",
-    "matplotlib",
-    "pandas",
+    "numpy>=1.26",
+    "scipy>=1.11",
+    "matplotlib>=3.8",
+    "pandas>=2.0",
     "pillow",
-    "opencv-python",
-    "scikit-image",
-    "jax",
-    "jaxlib",
+    "opencv-python>=4.8",
+    "scikit-image>=0.25",
 ]
 
 [project.optional-dependencies]
-segmentation = [
-    "torch",
-    "segment-anything",
-    "cameratransform",
+# JAX is intentionally optional because the correct wheel depends on the
+# machine. Installing plain `jax` on a GPU machine can leave the solver on CPU.
+jax-cpu = [
+    "jax",
 ]
-dev = ["pytest"]
+jax-cuda12 = [
+    "jax[cuda12]",
+]
+jax-cuda13 = [
+    "jax[cuda13]",
+]
+
+# SAM/sea-ice extras intentionally do not install torch. Install PyTorch
+# explicitly in scripts/bootstrap.sh so CPU/GPU builds are not chosen by accident.
+sea-ice = [
+    "cameratransform>=1.2",
+    "segment-anything @ git+https://github.com/facebookresearch/segment-anything.git",
+]
+segmentation = [
+    "cameratransform>=1.2",
+    "segment-anything @ git+https://github.com/facebookresearch/segment-anything.git",
+]
+dev = [
+    "pytest",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]

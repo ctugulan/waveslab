@@ -36,3 +36,9 @@ weights/
 *.pth
 
 # Keep small sample data if explicitly included; generated outputs remain ignored.
+
+examples/weights/*.pth
+examples/weights/*.pt
+*.egg-info/
+__pycache__/
+.pytest_cache/

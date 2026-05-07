@@ -25,6 +25,7 @@ CUDA_VISIBLE_DEVICES=0 python examples/segment_sea_ice_fair_compare.py \
 """
 
 import argparse
+import inspect
 import json
 import math
 from dataclasses import dataclass
@@ -220,6 +221,31 @@ def safe_axis_lengths(prop: Any) -> tuple[float, float]:
     return float(major), float(minor)
 
 
+_HAS_SKIMAGE_MAX_SIZE_OBJECTS = "max_size" in inspect.signature(remove_small_objects).parameters
+_HAS_SKIMAGE_MAX_SIZE_HOLES = "max_size" in inspect.signature(remove_small_holes).parameters
+
+
+def remove_objects_smaller_than(mask: np.ndarray, min_size_px: int) -> np.ndarray:
+    """Remove connected components with area < min_size_px.
+
+    scikit-image 0.26 renamed the threshold argument from ``min_size`` to
+    ``max_size`` and changed the comparison from ``<`` to ``<=``.  Subtracting
+    one keeps the historical behaviour used by this thesis script.
+    """
+    min_size_px = int(min_size_px)
+    if _HAS_SKIMAGE_MAX_SIZE_OBJECTS:
+        return remove_small_objects(mask.astype(bool), max_size=max(min_size_px - 1, 0))
+    return remove_small_objects(mask.astype(bool), min_size=min_size_px)
+
+
+def fill_holes_smaller_than(mask: np.ndarray, min_hole_area_px: int) -> np.ndarray:
+    """Fill holes with area < min_hole_area_px, across scikit-image versions."""
+    min_hole_area_px = int(min_hole_area_px)
+    if _HAS_SKIMAGE_MAX_SIZE_HOLES:
+        return remove_small_holes(mask.astype(bool), max_size=max(min_hole_area_px - 1, 0))
+    return remove_small_holes(mask.astype(bool), area_threshold=min_hole_area_px)
+
+
 # -----------------------------------------------------------------------------
 # Image preparation
 # -----------------------------------------------------------------------------
@@ -328,7 +354,7 @@ def prepare_common_input(
 def compute_regions(masked_bgr: np.ndarray, invalid_mask: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     gray = cv2.cvtColor(masked_bgr, cv2.COLOR_BGR2GRAY)
     valid = (gray > 2) & (~invalid_mask)
-    valid = remove_small_objects(valid.astype(bool), MIN_FLOE_AREA_PX)
+    valid = remove_objects_smaller_than(valid.astype(bool), MIN_FLOE_AREA_PX)
     interior = ndi.binary_erosion(valid, structure=disk_kernel(INTERIOR_MARGIN_PX).astype(bool))
     return valid.astype(bool), interior.astype(bool)
 
@@ -383,10 +409,10 @@ def segment_morphology(masked_bgr: np.ndarray, valid_region: np.ndarray, interio
 
     threshold_value, _ = cv2.threshold(values.reshape(-1, 1), 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
     ice = (work >= float(threshold_value)) & valid_region
-    ice = remove_small_objects(ice, MIN_FLOE_AREA_PX)
+    ice = remove_objects_smaller_than(ice, MIN_FLOE_AREA_PX)
     ice = cv2.erode(ice.astype(np.uint8), disk_kernel(MORPH_ERODE_RADIUS_PX), iterations=1) > 0
     ice = ndi.binary_fill_holes(ice)
-    ice = remove_small_holes(ice, MORPH_MIN_HOLE_AREA_PX)
+    ice = fill_holes_smaller_than(ice, MORPH_MIN_HOLE_AREA_PX)
     ice = cv2.dilate(ice.astype(np.uint8), disk_kernel(MORPH_DILATE_RADIUS_PX), iterations=1) > 0
     labels = measure.label(ice & valid_region, connectivity=2)
     return relabel_filtered(labels, valid_region, interior_region)
@@ -406,8 +432,8 @@ def segment_kmeans_watershed(masked_bgr: np.ndarray, valid_region: np.ndarray, i
     cluster_image = np.full(gray.shape, water_cluster, dtype=np.int32)
     cluster_image[valid_region] = compact_labels.ravel().astype(np.int32)
     ice = (cluster_image != water_cluster) & valid_region
-    ice = remove_small_objects(ice, MIN_FLOE_AREA_PX)
-    ice = remove_small_holes(ice, MORPH_MIN_HOLE_AREA_PX)
+    ice = remove_objects_smaller_than(ice, MIN_FLOE_AREA_PX)
+    ice = fill_holes_smaller_than(ice, MORPH_MIN_HOLE_AREA_PX)
 
     distance = ndi.distance_transform_edt(ice)
     if distance.max() <= 0:
@@ -474,7 +500,7 @@ def segment_sam_auto_cfg(
             continue
         if np.count_nonzero(seg & occupied) / float(max(area, 1)) > float(max_overlap_frac):
             continue
-        seg = remove_small_objects(seg & (~occupied), MIN_FLOE_AREA_PX)
+        seg = remove_objects_smaller_than(seg & (~occupied), MIN_FLOE_AREA_PX)
         if np.count_nonzero(seg) < MIN_FLOE_AREA_PX:
             continue
         out[seg] = next_label
@@ -667,7 +693,7 @@ def segment_prompted_sam_from_candidates(
         if best_seg is None:
             continue
 
-        best_seg = remove_small_objects(best_seg & (~occupied), MIN_FLOE_AREA_PX)
+        best_seg = remove_objects_smaller_than(best_seg & (~occupied), MIN_FLOE_AREA_PX)
         if np.count_nonzero(best_seg) < MIN_FLOE_AREA_PX:
             continue
 
