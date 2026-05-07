@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "waveslab"
+version = "0.1.0"
+description = "Steady hydroelastic wave modelling and image-derived ice-cover representations."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy",
+    "scipy",
+    "matplotlib",
+    "pandas",
+    "pillow",
+    "opencv-python",
+    "scikit-image",
+    "jax",
+    "jaxlib",
+]
+
+[project.optional-dependencies]
+segmentation = [
+    "torch",
+    "segment-anything",
+    "cameratransform",
+]
+dev = ["pytest"]
+
+[tool.setuptools.packages.find]
+where = ["src"]

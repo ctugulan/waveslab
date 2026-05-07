@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+
+# Local editors
+.vscode/
+.idea/
+
+# Generated research outputs
+outputs/
+out/
+runs/
+results/
+figures/generated/
+*.npy
+*.npz
+*.mat
+*.h5
+*.mp4
+*.gif
+
+# Raw or external data
+data/raw/
+data/external/
+
+# System
+.DS_Store
+Thumbs.db
+
+# SAM model weights
+weights/
+*.pth
+
+# Keep small sample data if explicitly included; generated outputs remain ignored.
